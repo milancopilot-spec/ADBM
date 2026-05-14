@@ -1,0 +1,258 @@
+@{
+    ViewBag.Title = "DL - ABHA Enrollment";
+    ViewBag.Active = "DL";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h4 class="mb-4 fw-bold">DL - ABHA Enrollment via Driving License</h4>
+
+<div class="mb-3">
+    <a href="@Url.Action("Index","M1HealthId")" class="btn btn-sm btn-outline-secondary">&larr; Back to M1 Hub</a>
+</div>
+
+<!-- Step 1: Send Mobile OTP -->
+<div class="card p-4 mb-4">
+    <h6 class="fw-semibold mb-3">Step 1 - Send Mobile OTP</h6>
+    <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">Mobile Number</label>
+            <input id="dlMobile" type="text" class="form-control" maxlength="10"
+                   placeholder="10-digit mobile number" autocomplete="off" />
+        </div>
+        <div class="col-md-3">
+            <button id="dlStep1Btn" class="btn btn-primary w-100" onclick="dlSendOtp()">Send OTP</button>
+        </div>
+    </div>
+    <div id="dlStep1Result" class="mt-3"></div>
+</div>
+
+<!-- Step 2: Verify Mobile OTP (hidden until Step 1 success) -->
+<div id="dlStep2Panel" class="card p-4 mb-4 d-none">
+    <h6 class="fw-semibold mb-3">Step 2 - Verify Mobile OTP</h6>
+    <div class="row g-3 align-items-end">
+        <div class="col-md-5">
+            <label class="form-label">Transaction ID</label>
+            <input id="dlStep2TxnId" type="text" class="form-control" readonly
+                   placeholder="Auto-filled from Step 1" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">OTP</label>
+            <input id="dlOtp" type="text" class="form-control" maxlength="6" placeholder="6-digit OTP" />
+        </div>
+        <div class="col-md-2">
+            <button id="dlStep2Btn" class="btn btn-primary w-100" onclick="dlVerifyOtp()">Verify OTP</button>
+        </div>
+    </div>
+    <div id="dlStep2Result" class="mt-3"></div>
+</div>
+
+<!-- Step 3: DL Details (hidden until Step 2 success) -->
+<div id="dlStep3Panel" class="card p-4 d-none">
+    <h6 class="fw-semibold mb-3">Step 3 - Enter Driving License Details</h6>
+    <input type="hidden" id="dlStep3TxnId" />
+
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <label class="form-label">DL Number <span class="text-danger">*</span></label>
+            <input id="dlNumber" type="text" class="form-control"
+                   placeholder="e.g. MH01 20110012345" />
+        </div>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <label class="form-label">First Name <span class="text-danger">*</span></label>
+            <input id="dlFirstName" type="text" class="form-control"
+                   placeholder="As on driving license" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Last Name</label>
+            <input id="dlLastName" type="text" class="form-control"
+                   placeholder="As on driving license" />
+        </div>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+            <input id="dlDob" type="date" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Gender <span class="text-danger">*</span></label>
+            <select id="dlGender" class="form-select">
+                <option value="">-- Select --</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+                <option value="O">Other</option>
+            </select>
+        </div>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <label class="form-label">Address</label>
+            <input id="dlAddress" type="text" class="form-control"
+                   placeholder="Street address as on DL" />
+        </div>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <label class="form-label">State</label>
+            <input id="dlState" type="text" class="form-control" placeholder="State" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">District</label>
+            <input id="dlDistrict" type="text" class="form-control" placeholder="District" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Pincode</label>
+            <input id="dlPinCode" type="text" class="form-control"
+                   maxlength="6" placeholder="6-digit pincode" />
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <label class="form-label">Front Photo of DL <span class="text-danger">*</span></label>
+            <input type="file" class="form-control" accept="image/*"
+                   onchange="readPhoto(this,'dlFrontPhotoB64','dlFrontPreview')" />
+            <input type="hidden" id="dlFrontPhotoB64" />
+            <img id="dlFrontPreview" src="" alt="Front preview"
+                 class="img-thumbnail mt-2 d-none" style="max-height:120px" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Back Photo of DL <span class="text-danger">*</span></label>
+            <input type="file" class="form-control" accept="image/*"
+                   onchange="readPhoto(this,'dlBackPhotoB64','dlBackPreview')" />
+            <input type="hidden" id="dlBackPhotoB64" />
+            <img id="dlBackPreview" src="" alt="Back preview"
+                 class="img-thumbnail mt-2 d-none" style="max-height:120px" />
+        </div>
+    </div>
+
+    <button id="dlStep3Btn" class="btn btn-success w-100"
+            onclick="dlEnrol()">Create ABHA via Driving License</button>
+    <div id="dlStep3Result" class="mt-3"></div>
+</div>
+
+@section Scripts {
+<script>
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function spin(id)   { const b=document.getElementById(id); if(b){b.disabled=true; b.dataset.label=b.textContent; b.innerHTML+=` <span class="spinner-border" role="status"></span>`;} }
+function unspin(id) { const b=document.getElementById(id); if(b){b.disabled=false; b.textContent=b.dataset.label;} }
+
+function showResult(id, ok, msg, data) {
+    const body = data ? `<pre class="mt-2 bg-light p-2 rounded" style="max-height:220px;overflow:auto;font-size:.82rem">${JSON.stringify(data,null,2)}</pre>` : '';
+    document.getElementById(id).innerHTML = `<div class="alert alert-${ok?'success':'danger'} mb-0 py-2">${escHtml(msg)}</div>${body}`;
+}
+
+async function post(url, payload) {
+    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    return r.json();
+}
+
+// ── Photo upload ──────────────────────────────────────────────────────────────
+
+function readPhoto(input, hiddenId, previewId) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 204800) {
+        alert('Image must be under 200 KB. Please choose a smaller file.');
+        input.value = '';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const b64 = e.target.result.split(',')[1];   // strip "data:image/...;base64," prefix
+        document.getElementById(hiddenId).value = b64;
+        const preview = document.getElementById(previewId);
+        preview.src = e.target.result;
+        preview.classList.remove('d-none');
+    };
+    reader.readAsDataURL(file);
+}
+
+// ── DL Enrollment ─────────────────────────────────────────────────────────────
+
+let _dlTxnId1 = '', _dlTxnId2 = '';
+
+async function dlSendOtp() {
+    const mobile = document.getElementById('dlMobile').value.trim();
+    if (!mobile || mobile.length !== 10 || !/^\d+$/.test(mobile)) {
+        showResult('dlStep1Result', false, 'Enter a valid 10-digit mobile number.');
+        return;
+    }
+    spin('dlStep1Btn');
+    try {
+        const res = await post('@Url.Action("DlGenerateMobileOtp","M1HealthId")?mobile=' + encodeURIComponent(mobile), {});
+        if (res.success) {
+            _dlTxnId1 = res.data?.txnId || '';
+            document.getElementById('dlStep2TxnId').value = _dlTxnId1;
+            document.getElementById('dlStep2Panel').classList.remove('d-none');
+            showResult('dlStep1Result', true, res.message || 'OTP sent.', res.data);
+        } else {
+            showResult('dlStep1Result', false, res.message || 'Failed to send OTP.', res.detail);
+        }
+    } catch(e) { showResult('dlStep1Result', false, 'Network error: ' + e.message); }
+    finally { unspin('dlStep1Btn'); }
+}
+
+async function dlVerifyOtp() {
+    const otp = document.getElementById('dlOtp').value.trim();
+    if (!_dlTxnId1) { showResult('dlStep2Result', false, 'Complete Step 1 first.'); return; }
+    if (!otp || otp.length < 4) { showResult('dlStep2Result', false, 'Enter the OTP.'); return; }
+    spin('dlStep2Btn');
+    try {
+        const url = '@Url.Action("DlVerifyMobileOtp","M1HealthId")'
+                  + '?txnId=' + encodeURIComponent(_dlTxnId1)
+                  + '&otp='   + encodeURIComponent(otp);
+        const res = await post(url, {});
+        if (res.success) {
+            _dlTxnId2 = res.data?.txnId || _dlTxnId1;
+            document.getElementById('dlStep3TxnId').value = _dlTxnId2;
+            document.getElementById('dlStep3Panel').classList.remove('d-none');
+            showResult('dlStep2Result', true, 'OTP verified. Fill DL details below.', res.data);
+        } else {
+            showResult('dlStep2Result', false, res.message || 'OTP verification failed.', res.detail);
+        }
+    } catch(e) { showResult('dlStep2Result', false, 'Network error: ' + e.message); }
+    finally { unspin('dlStep2Btn'); }
+}
+
+async function dlEnrol() {
+    const txnId      = _dlTxnId2 || document.getElementById('dlStep3TxnId').value.trim();
+    const documentId = document.getElementById('dlNumber').value.trim();
+    const firstName  = document.getElementById('dlFirstName').value.trim();
+    const lastName   = document.getElementById('dlLastName').value.trim();
+    const dob        = document.getElementById('dlDob').value.trim();
+    const gender     = document.getElementById('dlGender').value;
+    const address    = document.getElementById('dlAddress').value.trim();
+    const state      = document.getElementById('dlState').value.trim();
+    const district   = document.getElementById('dlDistrict').value.trim();
+    const pinCode    = document.getElementById('dlPinCode').value.trim();
+    const frontPhoto = document.getElementById('dlFrontPhotoB64').value;
+    const backPhoto  = document.getElementById('dlBackPhotoB64').value;
+
+    if (!txnId)      { showResult('dlStep3Result', false, 'Complete Steps 1 and 2 first.'); return; }
+    if (!documentId) { showResult('dlStep3Result', false, 'DL number is required.'); return; }
+    if (!firstName)  { showResult('dlStep3Result', false, 'First name is required.'); return; }
+    if (!dob)        { showResult('dlStep3Result', false, 'Date of birth is required.'); return; }
+    if (!gender)     { showResult('dlStep3Result', false, 'Gender is required.'); return; }
+    if (!frontPhoto) { showResult('dlStep3Result', false, 'Front photo of DL is required.'); return; }
+    if (!backPhoto)  { showResult('dlStep3Result', false, 'Back photo of DL is required.'); return; }
+
+    spin('dlStep3Btn');
+    try {
+        const res = await post('@Url.Action("DlEnrol","M1HealthId")', {
+            txnId, documentId, firstName, lastName, dob, gender,
+            address, state, district, pinCode, frontPhoto, backPhoto
+        });
+        if (res.success) {
+            showResult('dlStep3Result', true, res.message || 'ABHA enrollment initiated.', res.data);
+        } else {
+            showResult('dlStep3Result', false, res.message || 'Enrollment failed.', res.detail);
+        }
+    } catch(e) { showResult('dlStep3Result', false, 'Network error: ' + e.message); }
+    finally { unspin('dlStep3Btn'); }
+}
+</script>
+}

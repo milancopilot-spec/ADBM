@@ -1,0 +1,329 @@
+{
+  "info": {
+    "name": "ABDM Integration – M1 / M2 / M3",
+    "_postman_id": "abdm-mvc-scaffold-v1",
+    "description": "Sample requests for the ABDM .NET MVC scaffold. Set the {{base_url}} variable to your local IIS Express URL (e.g. https://localhost:44300).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",   "value": "https://localhost:44300" },
+    { "key": "txn_id",     "value": "" },
+    { "key": "health_id",  "value": "" },
+    { "key": "facility_id","value": "" },
+    { "key": "consent_req_id", "value": "" },
+    { "key": "consent_id", "value": "" }
+  ],
+  "item": [
+
+    {
+      "name": "M1 – Health ID (ABHA)",
+      "item": [
+
+        {
+          "name": "M1-01 Generate Aadhaar OTP",
+          "request": {
+            "method": "POST",
+            "url":    "{{base_url}}/M1HealthId/GenerateOtp",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aadhaar\": \"999900000001\"\n}"
+            },
+            "description": "Step 1 – triggers an OTP to the Aadhaar-linked mobile.\nStore the returned txnId in the {{txn_id}} variable."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var json = pm.response.json();",
+                "if (json.success && json.data && json.data.txnId) {",
+                "  pm.collectionVariables.set('txn_id', json.data.txnId);",
+                "  pm.test('txnId captured', () => pm.expect(json.data.txnId).to.not.be.empty);",
+                "}",
+                "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+              ]
+            }
+          }]
+        },
+
+        {
+          "name": "M1-02 Verify OTP & Create ABHA",
+          "request": {
+            "method": "POST",
+            "url":    "{{base_url}}/M1HealthId/VerifyOtpAndCreate",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"txnId\": \"{{txn_id}}\",\n  \"otp\": \"123456\"\n}"
+            },
+            "description": "Step 2 – verifies OTP and creates the ABHA number.\nUse the txnId from step 1; sandbox OTP is 123456."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var json = pm.response.json();",
+                "if (json.success && json.data && json.data.healthId) {",
+                "  pm.collectionVariables.set('health_id', json.data.healthId);",
+                "}",
+                "pm.test('ABHA created', () => pm.expect(json.success).to.be.true);"
+              ]
+            }
+          }]
+        },
+
+        {
+          "name": "M1-03 Get ABHA Profile",
+          "request": {
+            "method": "GET",
+            "url":    "{{base_url}}/M1HealthId/GetProfile/{{health_id}}",
+            "description": "Fetch the full profile for the ABHA created in step 2."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Profile returned', () => {",
+                "  var json = pm.response.json();",
+                "  pm.expect(json.success).to.be.true;",
+                "  pm.expect(json.data).to.have.property('healthId');",
+                "});"
+              ]
+            }
+          }]
+        },
+
+        {
+          "name": "M1-04 Deactivate Health ID",
+          "request": {
+            "method": "POST",
+            "url":    "{{base_url}}/M1HealthId/Deactivate?healthId={{health_id}}",
+            "description": "Soft-delete the Health ID (reversible via ABDM portal)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Deactivated', () => pm.response.to.have.status(200));"
+              ]
+            }
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "M2 – Health Facility Registry (HFR)",
+      "item": [
+
+        {
+          "name": "M2-01 Register Facility",
+          "request": {
+            "method": "POST",
+            "url":    "{{base_url}}/M2Facility/Register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"facilityName\": \"City Health Clinic\",\n  \"facilityType\": \"Hospital\",\n  \"ownership\": \"Private\",\n  \"address\": {\n    \"buildingNo\": \"12A\",\n    \"locality\": \"MG Road\",\n    \"district\": \"Bengaluru Urban\",\n    \"state\": \"Karnataka\",\n    \"pincode\": \"560001\"\n  },\n  \"contact\": {\n    \"mobile\": \"9876543210\",\n    \"email\": \"admin@cityclinic.in\"\n  },\n  \"services\": [\"GeneralMedicine\", \"Radiology\"]\n}"
+            },
+            "description": "Creates a new facility in HFR. Returns a facilityId."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var json = pm.response.json();",
+                "if (json.success && json.data && json.data.facilityId) {",
+                "  pm.collectionVariables.set('facility_id', json.data.facilityId);",
+                "}",
+                "pm.test('Facility registered', () => pm.expect(json.success).to.be.true);"
+              ]
+            }
+          }]
+        },
+
+        {
+          "name": "M2-02 Get Facility",
+          "request": {
+            "method": "GET",
+            "url":    "{{base_url}}/M2Facility/Get/{{facility_id}}",
+            "description": "Fetch full details for the registered facility."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Facility found', () => {",
+                "  var json = pm.response.json();",
+                "  pm.expect(json.data.facilityId).to.eql(pm.collectionVariables.get('facility_id'));",
+                "});"
+              ]
+            }
+          }]
+        },
+
+        {
+          "name": "M2-03 Search Facilities",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/M2Facility/Search?state=Karnataka&district=Bengaluru Urban",
+              "query": [
+                { "key": "state",    "value": "Karnataka" },
+                { "key": "district", "value": "Bengaluru Urban" }
+              ]
+            },
+            "description": "Search by state + district. All params optional."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Search returned array', () => {",
+                "  var json = pm.response.json();",
+                "  pm.expect(json.data).to.be.an('array');",
+                "});"
+              ]
+            }
+          }]
+        },
+
+        {
+          "name": "M2-04 Update Facility",
+          "request": {
+            "method": "PUT",
+            "url":    "{{base_url}}/M2Facility/Update/{{facility_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"facilityName\": \"City Health Clinic (Updated)\",\n  \"facilityType\": \"Hospital\",\n  \"ownership\": \"Private\",\n  \"address\": {\n    \"buildingNo\": \"12A\",\n    \"locality\": \"MG Road\",\n    \"district\": \"Bengaluru Urban\",\n    \"state\": \"Karnataka\",\n    \"pincode\": \"560001\"\n  },\n  \"contact\": {\n    \"mobile\": \"9876543210\",\n    \"email\": \"updated@cityclinic.in\"\n  },\n  \"services\": [\"GeneralMedicine\", \"Radiology\", \"Pathology\"]\n}"
+            }
+          }
+        },
+
+        {
+          "name": "M2-05 Delete (Deactivate) Facility",
+          "request": {
+            "method": "DELETE",
+            "url":    "{{base_url}}/M2Facility/Delete/{{facility_id}}"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["pm.test('Deactivated', () => pm.response.to.have.status(200));"]
+            }
+          }]
+        }
+
+      ]
+    },
+
+    {
+      "name": "M3 – Consent & FHIR",
+      "item": [
+
+        {
+          "name": "M3-01 Init Consent Request",
+          "request": {
+            "method": "POST",
+            "url":    "{{base_url}}/M3Consent/Init",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"purpose\": { \"text\": \"Care Management\", \"code\": \"CAREMGT\", \"refUri\": \"https://nrces.in/ndhm/fhir/r4/ValueSet/purposeOfUse\" },\n  \"patient\": { \"id\": \"deepak.kumar@abdm\" },\n  \"hiu\":     { \"id\": \"your-hiu-id@abdm\" },\n  \"requester\": {\n    \"name\": \"Dr. Meera Sharma\",\n    \"identifier\": { \"type\": \"REGNO\", \"value\": \"MH-12345\", \"system\": \"https://doctor.ndhm.gov.in\" }\n  },\n  \"hiTypes\": [\"OPConsultation\", \"Prescription\"],\n  \"permission\": {\n    \"accessMode\": \"VIEW\",\n    \"dateRange\": { \"from\": \"2023-01-01T00:00:00.000Z\", \"to\": \"2024-12-31T23:59:59.000Z\" },\n    \"dataEraseAt\": \"2025-12-31T23:59:59.000Z\",\n    \"frequency\": { \"unit\": \"HOUR\", \"value\": 1, \"repeats\": 0 }\n  }\n}"
+            },
+            "description": "Raises a consent request. Patient receives notification in their PHR app.\nStore returned requestId in {{consent_req_id}}."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var json = pm.response.json();",
+                "if (json.success && json.data && json.data.requestId) {",
+                "  pm.collectionVariables.set('consent_req_id', json.data.requestId);",
+                "}",
+                "pm.test('Consent request raised', () => pm.expect(json.success).to.be.true);"
+              ]
+            }
+          }]
+        },
+
+        {
+          "name": "M3-02 Poll Consent Status",
+          "request": {
+            "method": "GET",
+            "url":    "{{base_url}}/M3Consent/Status/{{consent_req_id}}",
+            "description": "Poll until status is GRANTED, DENIED, or EXPIRED.\nExpected statuses: REQUESTED | GRANTED | DENIED | EXPIRED | REVOKED"
+          }
+        },
+
+        {
+          "name": "M3-03 Fetch Consent Artefact",
+          "request": {
+            "method": "GET",
+            "url":    "{{base_url}}/M3Consent/Artefact/{{consent_id}}",
+            "description": "After GRANTED status, fetch the full artefact.\nThe consentId comes from your HIU callback (M3Callback/ConsentNotify)."
+          }
+        },
+
+        {
+          "name": "M3-04 Request Health Information",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/M3Consent/RequestHealthInfo?consentId={{consent_id}}&dataPushUrl=https://your-ngrok-url/M3Callback/HealthDataReceive",
+              "query": [
+                { "key": "consentId",   "value": "{{consent_id}}" },
+                { "key": "dataPushUrl", "value": "https://your-ngrok-url/M3Callback/HealthDataReceive" }
+              ]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cryptoAlg\": \"ECDH\",\n  \"curve\": \"Curve25519\",\n  \"dhPublicKey\": {\n    \"expiry\": \"2025-01-01T00:00:00.000Z\",\n    \"parameters\": \"Curve25519/32byte\",\n    \"keyValue\": \"YOUR_BASE64_PUBLIC_KEY\"\n  },\n  \"nonce\": \"YOUR_BASE64_NONCE\"\n}"
+            },
+            "description": "Triggers the HIP to push FHIR bundles to your dataPushUrl.\nReplace YOUR_BASE64_PUBLIC_KEY with your ECDH Curve25519 public key."
+          }
+        },
+
+        {
+          "name": "M3-05 Revoke Consent",
+          "request": {
+            "method": "POST",
+            "url":    "{{base_url}}/M3Consent/Revoke/{{consent_id}}",
+            "description": "Revokes a previously granted consent artefact."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["pm.test('Revoked', () => pm.response.to.have.status(200));"]
+            }
+          }]
+        },
+
+        {
+          "name": "M3-06 [Simulate] Consent Notify Callback",
+          "request": {
+            "method": "POST",
+            "url":    "{{base_url}}/M3Callback/ConsentNotify",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"sim-req-001\",\n  \"timestamp\": \"2024-01-15T10:35:00.000Z\",\n  \"notification\": {\n    \"consentRequestId\": \"{{consent_req_id}}\",\n    \"status\": \"GRANTED\",\n    \"consentArtefacts\": [{ \"id\": \"sim-artefact-001\" }]\n  }\n}"
+            },
+            "description": "Simulates ABDM calling your HIU callback with a GRANTED notification.\nIn production ABDM calls this automatically; this request is for local testing only."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["pm.test('Callback accepted', () => pm.response.to.have.status(202));"]
+            }
+          }]
+        }
+
+      ]
+    }
+
+  ]
+}

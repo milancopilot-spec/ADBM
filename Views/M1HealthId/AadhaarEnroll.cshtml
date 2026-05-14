@@ -1,0 +1,237 @@
+@{
+    ViewBag.Title = "Aadhaar - ABHA Enrollment";
+    ViewBag.Active = "AadhaarEnroll";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h4 class="mb-4 fw-bold">Aadhaar - ABHA Enrollment</h4>
+
+<div class="mb-3">
+    <a href="@Url.Action("Index","M1HealthId")" class="btn btn-sm btn-outline-secondary">&larr; Back to M1 Hub</a>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Step 1 -->
+    <div class="col-md-5">
+        <div class="card p-4 h-100">
+            <h6 class="fw-semibold mb-3">Step 1 - Send Aadhaar OTP</h6>
+            <div class="mb-3">
+                <label class="form-label">Aadhaar Number</label>
+                <input id="c1Aadhaar" type="text" class="form-control" maxlength="12"
+                       placeholder="12-digit Aadhaar" autocomplete="off" />
+                <div class="form-text">Use sandbox test Aadhaar from ABDM portal.</div>
+            </div>
+            <div class="d-grid gap-2">
+                <button id="c1Btn" class="btn btn-primary" onclick="generateOtp()">Send OTP</button>
+                <button id="c1ResendBtn" class="btn btn-outline-secondary d-none" onclick="resendOtp()">
+                    Resend OTP &nbsp;<span id="c1Countdown" class="text-muted small"></span>
+                </button>
+            </div>
+            <div id="c1Result" class="mt-3"></div>
+        </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="col-md-7">
+        <div class="card p-4 h-100">
+            <h6 class="fw-semibold mb-3">Step 2 - Verify OTP &amp; Create ABHA</h6>
+            <div class="mb-2">
+                <label class="form-label">Transaction ID</label>
+                <input id="c2TxnId" type="text" class="form-control" placeholder="Auto-filled from Step 1" readonly />
+                <div class="form-text">OTP valid for <span id="c2OtpTimer" class="fw-semibold text-danger"></span></div>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">OTP</label>
+                <input id="c2Otp" type="text" class="form-control" maxlength="6" placeholder="6-digit OTP (sandbox: 123456)" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Mobile Number</label>
+                <input id="c2Mobile" type="text" class="form-control" maxlength="10" placeholder="10-digit Aadhaar-linked mobile" />
+            </div>
+            <button id="c2Btn" class="btn btn-success w-100" onclick="verifyAndCreate()">Verify OTP &amp; Create ABHA</button>
+            <div id="c2Result" class="mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Step 3: ABHA Address Selection (shown after Step 2 success) -->
+<div id="step3Panel" class="d-none">
+    <div class="card p-4 border-primary">
+        <h6 class="fw-semibold mb-3">Step 3 - Choose Your ABHA Address</h6>
+        <p class="text-muted small mb-3">Select a suggested ABHA address or type your own.</p>
+        <div class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label">Suggested Addresses</label>
+                <select id="c3Suggestions" class="form-select">
+                    <option value="">-- Select a suggestion --</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Or type your own</label>
+                <input id="c3Custom" type="text" class="form-control" placeholder="yourname@abdm" />
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" onclick="createAbhaAddress()">Confirm</button>
+            </div>
+        </div>
+        <div id="c3Result" class="mt-3"></div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const OTP_TTL = 600;
+
+const SS = {
+    get txnId()   { return sessionStorage.getItem('abdm_txnId')   || ''; },
+    get aadhaar() { return sessionStorage.getItem('abdm_aadhaar') || ''; },
+    get otpTs()   { return parseInt(sessionStorage.getItem('abdm_otpTs') || '0'); },
+    get xToken()  { return sessionStorage.getItem('abdm_xtoken')  || ''; },
+    set txnId(v)   { sessionStorage.setItem('abdm_txnId',   v); },
+    set aadhaar(v) { sessionStorage.setItem('abdm_aadhaar', v); },
+    set otpTs(v)   { sessionStorage.setItem('abdm_otpTs',   String(v)); },
+    set xToken(v)  { sessionStorage.setItem('abdm_xtoken',  v); },
+    clear() { ['abdm_txnId','abdm_aadhaar','abdm_otpTs'].forEach(k => sessionStorage.removeItem(k)); }
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+    if (SS.txnId) {
+        document.getElementById('c2TxnId').value = SS.txnId;
+        if (SS.aadhaar) document.getElementById('c1Aadhaar').value = SS.aadhaar;
+        startOtpTimer(); showResendBtn();
+    }
+});
+
+function spin(id)   { const b=document.getElementById(id); if(b){b.disabled=true; b.dataset.label=b.textContent; b.innerHTML+=` <span class="spinner-border" role="status"></span>`;} }
+function unspin(id) { const b=document.getElementById(id); if(b){b.disabled=false; b.textContent=b.dataset.label;} }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showResult(id, ok, msg, data) {
+    const body = data ? `<pre class="mt-2 bg-light p-2 rounded" style="max-height:220px;overflow:auto;font-size:.82rem">${JSON.stringify(data,null,2)}</pre>` : '';
+    document.getElementById(id).innerHTML = `<div class="alert alert-${ok?'success':'danger'} mb-0 py-2">${escHtml(msg)}</div>${body}`;
+}
+
+function friendlyError(res) {
+    const r = res.message || '';
+    if (r.includes('Invalid LoginId')||r.includes('loginId')) return 'Invalid Aadhaar. Use sandbox test Aadhaar from ABDM portal.';
+    if (r.includes('OTP')&&r.includes('expired'))             return 'OTP expired. Click Resend OTP.';
+    if (r.includes('OTP')&&(r.includes('invalid')||r.includes('mismatch'))) return 'Incorrect OTP. Please try again.';
+    if (r.includes('already')||r.includes('exist'))           return 'An ABHA already exists for this Aadhaar.';
+    if (r.includes('mobile'))                                 return 'Invalid mobile number.';
+    return r || 'An unexpected error occurred.';
+}
+
+async function post(url, payload) {
+    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    return r.json();
+}
+
+let _timer = null;
+
+function startOtpTimer() {
+    if (_timer) clearInterval(_timer);
+    const el = document.getElementById('c2OtpTimer');
+    const tick = () => {
+        const left = OTP_TTL - Math.floor((Date.now()-SS.otpTs)/1000);
+        if (left <= 0) { el.textContent='OTP expired - please resend'; el.className='fw-semibold text-warning'; clearInterval(_timer); _timer=null; }
+        else { const m=String(Math.floor(left/60)).padStart(2,'0'), s=String(left%60).padStart(2,'0'); el.textContent=`${m}:${s} remaining`; }
+    };
+    tick(); _timer = setInterval(tick, 1000);
+}
+
+function showResendBtn() { document.getElementById('c1ResendBtn').classList.remove('d-none'); }
+
+async function generateOtp() {
+    const aadhaar = document.getElementById('c1Aadhaar').value.trim();
+    if (!aadhaar||aadhaar.length!==12||!/^\d+$/.test(aadhaar)) { showResult('c1Result',false,'Enter a valid 12-digit Aadhaar.'); return; }
+    spin('c1Btn');
+    try {
+        const res = await post('@Url.Action("GenerateOtp","M1HealthId")', {aadhaar});
+        if (res.success) {
+            SS.txnId=res.data?.txnId??''; SS.aadhaar=aadhaar; SS.otpTs=Date.now();
+            document.getElementById('c2TxnId').value=SS.txnId;
+            startOtpTimer(); showResendBtn();
+            showResult('c1Result',true,res.message||'OTP sent.',{txnId:res.data?.txnId,message:res.data?.message});
+        } else { showResult('c1Result',false,friendlyError(res),res.detail); }
+    } catch(e) { showResult('c1Result',false,'Network error: '+e.message); }
+    finally { unspin('c1Btn'); }
+}
+
+async function resendOtp() {
+    const aadhaar=document.getElementById('c1Aadhaar').value.trim()||SS.aadhaar, txnId=SS.txnId;
+    if (!txnId||!aadhaar) { showResult('c1Result',false,'Send OTP first.'); return; }
+    spin('c1ResendBtn');
+    try {
+        const res = await post('@Url.Action("ResendOtp","M1HealthId")?txnId='+encodeURIComponent(txnId), {aadhaar});
+        if (res.success) { SS.txnId=res.data?.txnId??txnId; SS.otpTs=Date.now(); document.getElementById('c2TxnId').value=SS.txnId; startOtpTimer(); showResult('c1Result',true,'OTP resent.',res.data); }
+        else { showResult('c1Result',false,friendlyError(res),res.detail); }
+    } catch(e) { showResult('c1Result',false,'Network error: '+e.message); }
+    finally { unspin('c1ResendBtn'); }
+}
+
+async function verifyAndCreate() {
+    const txnId=document.getElementById('c2TxnId').value.trim(), otp=document.getElementById('c2Otp').value.trim(), mobile=document.getElementById('c2Mobile').value.trim();
+    if (!txnId) { showResult('c2Result',false,'txnId missing. Complete Step 1 first.'); return; }
+    if (!otp||otp.length<4) { showResult('c2Result',false,'Enter the OTP from your mobile.'); return; }
+    if (!mobile||mobile.length!==10) { showResult('c2Result',false,'Enter a valid 10-digit mobile number.'); return; }
+    spin('c2Btn');
+    try {
+        const res = await post('@Url.Action("VerifyOtpAndCreate","M1HealthId")', {txnId,otp,mobile});
+        if (res.success) {
+            SS.clear(); if (_timer){clearInterval(_timer);_timer=null;} document.getElementById('c2OtpTimer').textContent='';
+            const xToken = res.data?.tokens?.token || res.data?.token;
+            if (xToken) SS.xToken = xToken;
+            if (res.data?.ABHAProfile) {
+                const p=res.data.ABHAProfile, name=[p.firstName,p.middleName,p.lastName].filter(Boolean).join(' ')||'-';
+                document.getElementById('c2Result').innerHTML=`
+                  <div class="alert alert-success mb-2">${res.data.isNew?'ABHA created.':'Existing ABHA linked.'}</div>
+                  <div class="card p-3"><table class="table table-sm table-borderless mb-0">
+                    <tr><th style="width:130px">ABHA Number</th><td><code>${p.ABHANumber??'-'}</code></td></tr>
+                    <tr><th>Name</th><td>${escHtml(name)}</td></tr>
+                    <tr><th>DOB</th><td>${p.dateOfBirth??'-'}</td></tr>
+                    <tr><th>Gender</th><td>${p.gender??'-'}</td></tr>
+                    <tr><th>Mobile</th><td>${p.mobile??'-'}</td></tr>
+                    <tr><th>Status</th><td><span class="badge bg-${p.abhaStatus==='ACTIVE'?'success':'secondary'}">${p.abhaStatus??'-'}</span></td></tr>
+                  </table></div>`;
+            } else { showResult('c2Result',true,res.message,res.data); }
+            if (SS.txnId||res.data?.txnId) {
+                const sTxnId = res.data?.txnId || SS.txnId;
+                await loadSuggestions(sTxnId);
+            }
+        } else { showResult('c2Result',false,friendlyError(res),res.detail); }
+    } catch(e) { showResult('c2Result',false,'Network error: '+e.message); }
+    finally { unspin('c2Btn'); }
+}
+
+async function loadSuggestions(txnId) {
+    try {
+        const r   = await fetch('@Url.Action("Suggestions","M1HealthId")?txnId='+encodeURIComponent(txnId));
+        const res = await r.json();
+        if (res.success && res.data?.abhaAddressList?.length) {
+            const sel = document.getElementById('c3Suggestions');
+            sel.innerHTML = '<option value="">-- Select --</option>';
+            res.data.abhaAddressList.forEach(a => { const o=document.createElement('option'); o.value=a; o.textContent=a; sel.appendChild(o); });
+            sel.onchange = () => { if(sel.value) document.getElementById('c3Custom').value=sel.value; };
+            document.getElementById('c3Suggestions').dataset.txnId = res.data.txnId || txnId;
+            document.getElementById('step3Panel').classList.remove('d-none');
+        }
+    } catch {}
+}
+
+async function createAbhaAddress() {
+    const sel   = document.getElementById('c3Suggestions');
+    const addr  = document.getElementById('c3Custom').value.trim() || sel.value;
+    const txnId = sel.dataset.txnId;
+    if (!addr) { showResult('c3Result',false,'Select or type an ABHA address.'); return; }
+    try {
+        const res = await post('@Url.Action("CreateAbhaAddress","M1HealthId")?txnId='+encodeURIComponent(txnId)+'&abhaAddress='+encodeURIComponent(addr), {});
+        if (res.success) {
+            const xToken = res.data?.tokens?.token;
+            if (xToken) SS.xToken = xToken;
+            showResult('c3Result',true,'ABHA address created: '+addr,res.data);
+            document.getElementById('step3Panel').classList.add('d-none');
+        } else { showResult('c3Result',false,res.message,res.detail); }
+    } catch(e) { showResult('c3Result',false,'Network error: '+e.message); }
+}
+</script>
+}

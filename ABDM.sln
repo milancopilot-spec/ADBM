@@ -1,0 +1,28 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ABDM", "ABDM.csproj", "{B3C4D5E6-F7A8-9B0C-1D2E-3F4A5B6C7D8E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B3C4D5E6-F7A8-9B0C-1D2E-3F4A5B6C7D8E}.Debug|Any CPU.ActiveCfg = Debug|AnyCPU
+		{B3C4D5E6-F7A8-9B0C-1D2E-3F4A5B6C7D8E}.Debug|Any CPU.Build.0 = Debug|AnyCPU
+		{B3C4D5E6-F7A8-9B0C-1D2E-3F4A5B6C7D8E}.Release|Any CPU.ActiveCfg = Release|AnyCPU
+		{B3C4D5E6-F7A8-9B0C-1D2E-3F4A5B6C7D8E}.Release|Any CPU.Build.0 = Release|AnyCPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
+	EndGlobalSection
+	GlobalSection(StartupProject) = postSolution
+		StartupProject = {B3C4D5E6-F7A8-9B0C-1D2E-3F4A5B6C7D8E}
+	EndGlobalSection
+EndGlobal
